@@ -1,6 +1,6 @@
 import unittest
 import asyncio
-from signal import Broadcast, ROOT, ConnectionEnded, PendingConnection
+from signals import Broadcast, ROOT, ConnectionEnded, PendingConnection, Sender
 
 class TestBroadcast(unittest.TestCase):
     def setUp(self):
@@ -78,7 +78,7 @@ class TestBroadcast(unittest.TestCase):
         async def f1():
             await asyncio.sleep(0.5)
             fut = await self.broadcast.create_connection("test_conn")
-            sender = await fut
+            sender: Sender[int, int] = await fut
             i = 0
             self.assertEqual(sender.message, None, "Message should be None as f2 send None")
             excepted = False
@@ -95,9 +95,9 @@ class TestBroadcast(unittest.TestCase):
         async def f2():
             pending_conn: PendingConnection = await self.broadcast.wait_for('test_conn', timeout=1)
             fut = await pending_conn.establish(None)
-            sender = await fut
+            sender: Sender[int, int] = await fut
             for i in range(10):
-                message = sender.message
+                message: int = sender.message
                 await sender.send(message + 1)
                 sender = await sender.wait_for_recv()
             await sender.end()

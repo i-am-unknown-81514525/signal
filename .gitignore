@@ -192,3 +192,14 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# Default ignored files
+.idea/shelf/
+.idea/workspace.xml
+# Editor-based HTTP Client requests
+.idea/httpRequests/
+# Datasource local storage ignored files
+.idea/dataSources/
+.idea/dataSources.local.xml
+
+.idea/.gitignore

@@ -7,7 +7,7 @@ from typing import Any, Optional, overload, TypeVar
 
 LOOP: asyncio.AbstractEventLoop = asyncio.get_event_loop()
 
-class ConnectionInitialError(ConnectionError):...
+class ConnectionInitialError(ConnectionError): ...
 
 class ConnectionRejectedError(ConnectionInitialError): ...
 
@@ -27,16 +27,16 @@ class AutoFillDict(dict):
         return self[key]
 
 
-class PendingConnection[_T]:
-    def __init__(self, future: asyncio.Future[Sender[_T, ...]], *, check: Optional[Callable[[_T], bool]], loop: asyncio.AbstractEventLoop = LOOP):
-        self._origin_future: asyncio.Future[Sender[_T, ...]] = future
+class PendingConnection[_T, _S]:
+    def __init__(self, future: asyncio.Future[Sender[_T, _S]], *, check: Optional[Callable[[_T], bool]], loop: asyncio.AbstractEventLoop = LOOP):
+        self._origin_future: asyncio.Future[Sender[_T, _S]] = future
         self._check: Optional[Callable[[_T], bool]] = check
         self._consumed: bool = False
         self._loop: asyncio.AbstractEventLoop = loop
 
-    async def establish(self, resp: Optional[_T]) -> asyncio.Future[Sender]:
+    async def establish(self, resp: _T) -> asyncio.Future[Sender[_S, Any]]:
         fut: asyncio.Future = self._loop.create_future()
-        r_resp: Sender[_T, ...] = Sender(fut, loop=self._loop, message=resp)
+        r_resp: Sender[_T, Any] = Sender(fut, loop=self._loop, message=resp)
         if self._consumed:
             raise ConnectionConsumedError("Other part of program have already acquired the connection")
         if not self._check:
@@ -45,7 +45,7 @@ class PendingConnection[_T]:
             return fut
         if resp is None:
             try:
-                self._check(r_resp)  # Check if the function is expecting it as a valid result
+                self._check(resp)  # Check if the function is expecting it as a valid result
             except Exception as e:
                 raise ConnectionRejectedError("Your request to establish the connection have been rejected because no data is provided") from e
         result = self._check(resp)
@@ -57,7 +57,7 @@ class PendingConnection[_T]:
 
 class Sender[_R, _S]:
     def __init__(self, future: asyncio.Future, *, loop: asyncio.AbstractEventLoop = LOOP, message: _R):
-        self._target_future: asyncio.Future[Sender[_S, ...]] = future
+        self._target_future: asyncio.Future[Sender[_S, Any]] = future
         self.sent: bool = False
         self._self_future: asyncio.Future = loop.create_future()
         self._loop: asyncio.AbstractEventLoop = loop
@@ -79,7 +79,7 @@ class Sender[_R, _S]:
     async def send(self, resp: _S) -> asyncio.Future:
         if self.sent:
             raise DataAlreadySentError("You cannot send message once before the other side response")
-        r_resp: Sender[_S, ...] = Sender(self.future, loop=self._loop, message=resp)
+        r_resp: Sender[_S, Any] = Sender(self.future, loop=self._loop, message=resp)
         self.sent = True
         self._target_future.set_result(r_resp)
         return self.future
@@ -93,14 +93,14 @@ class Broadcast:
         self._parent: Optional[Broadcast] = parent
         self._loop = self._parent.loop if self._parent else LOOP
         self._children: list[Broadcast] = []
-        self._listener: dict[str | None, list[Callable[[Any], Coroutine[Any, Any, ...]]]] = AutoFillDict()
+        self._listener: dict[str | None, list[Callable[[Any], Coroutine[Any, Any, Any]]]] = AutoFillDict()
         self._temp_listener: list[tuple[str, asyncio.Future, Callable[[Any], bool]]] = []
 
     @property
     def loop(self) -> asyncio.AbstractEventLoop:
         return self._loop
 
-    def subscribe(self, callback: Callable[[Any], Coroutine[Any, Any, ...]], event: Optional[str] = None):
+    def subscribe(self, callback: Callable[[Any], Coroutine[Any, Any, Any]], event: Optional[str] = None):
         self._listener[event].append(callback)
 
     def wait_for(self, event: str, timeout: float = 600.0, *, check: Callable[[Any], bool] = lambda *v: True):
@@ -122,10 +122,10 @@ class Broadcast:
                 i -= 1
             finally:
                 i += 1  # Python 3.8+
-        for event in self._listener[event]:
-            tg.create_task(event(value))
-        for event in self._listener[None]:
-            tg.create_task(event(value))
+        for ev in self._listener[event]:
+            tg.create_task(ev(value))
+        for ev in self._listener[None]:
+            tg.create_task(ev(value))
 
     async def parent_emit(self, event: str, value: Any, *, tg: asyncio.TaskGroup):
         if self._parent:
@@ -154,6 +154,20 @@ class Broadcast:
         await self.emit(event=event, value=conn)
         return origin_future
 
+local_broadcast_registry: dict[str, Broadcast] = {}
 
+class BroadcastAdvertise(typing.NamedTuple):
+    name: str
+    broadcast: Broadcast
+
+async def create_local_broadcast(name: str, advertise: bool = False) -> Broadcast:
+    if name in local_broadcast_registry:
+        broadcast: Broadcast = local_broadcast_registry[name]
+    else:
+        broadcast: Broadcast = Broadcast(parent=None, name=name)
+    if advertise:
+        await ROOT.emit("channel_adv", BroadcastAdvertise(name, broadcast))
+    return broadcast
 
 ROOT = Broadcast(parent=None, name='root')
+local_broadcast_registry["root"] = ROOT
