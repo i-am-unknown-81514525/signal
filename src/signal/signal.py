@@ -31,7 +31,7 @@ class AutoFillDict(dict):
         return self[key]
 
 
-class PendingConnection(typing.Generic[_T]):
+class PendingConnection[_T]:
     def __init__(self, future: asyncio.Future[Sender[_T, ...]], *, check: Optional[Callable[[_T], bool]], loop: asyncio.AbstractEventLoop = LOOP):
         self._origin_future: asyncio.Future[Sender[_T, ...]] = future
         self._check: Optional[Callable[[_T], bool]] = check
@@ -59,7 +59,7 @@ class PendingConnection(typing.Generic[_T]):
         self._origin_future.set_result(r_resp)
         return fut
 
-class Sender(typing.Generic[_R, _S]):
+class Sender[_R, _S]:
     def __init__(self, future: asyncio.Future, *, loop: asyncio.AbstractEventLoop = LOOP, message: _R):
         self._target_future: asyncio.Future[Sender[_S, ...]] = future
         self.sent: bool = False
