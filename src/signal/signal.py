@@ -7,10 +7,6 @@ from typing import Any, Optional, overload, TypeVar
 
 LOOP: asyncio.AbstractEventLoop = asyncio.get_event_loop()
 
-_T = TypeVar('_T')
-_R = TypeVar('_R')
-_S = TypeVar('_S')
-
 class ConnectionInitialError(ConnectionError):...
 
 class ConnectionRejectedError(ConnectionInitialError): ...
