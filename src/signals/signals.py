@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from types import CoroutineType
 import typing
 from collections.abc import Callable, Coroutine
 from typing import Any, Optional, overload, TypeVar
@@ -103,7 +104,7 @@ class Broadcast:
     def subscribe(self, callback: Callable[[Any], Coroutine[Any, Any, Any]], event: Optional[str] = None):
         self._listener[event].append(callback)
 
-    def wait_for(self, event: str, timeout: float = 600.0, *, check: Callable[[Any], bool] = lambda *v: True):
+    def wait_for[_V](self, event: str, timeout: float = 600.0, *, check: Callable[[_V], bool] = lambda *v: True) -> CoroutineType[Any, Any, _V]:
         future = self._loop.create_future()
         self._temp_listener.append((event, future, check))
         return asyncio.wait_for(future, timeout)

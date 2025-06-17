@@ -1,5 +1,5 @@
 [project]
-name = "signal"
+name = "signals"
 version = "0.1.0"
 description = "A library to allow dispatch and receive event between different async task"
 readme = "README.md"
@@ -11,4 +11,9 @@ requires = ["uv_build>=0.7.13,<0.8.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
-module-name = "signal"
+module-name = "signals"
+
+[dependency-groups]
+dev = [
+    "coverage>=7.9.1",
+]

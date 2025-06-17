@@ -1,6 +1,7 @@
 import unittest
 import asyncio
-from signals import Broadcast, ROOT, ConnectionEnded, PendingConnection, Sender
+from signals import Broadcast, ROOT, ConnectionEnded, PendingConnection, Sender, create_local_broadcast
+from signals.signals import BroadcastAdvertise
 
 class TestBroadcast(unittest.TestCase):
     def setUp(self):
@@ -130,6 +131,37 @@ class TestBroadcast(unittest.TestCase):
             await self.child_broadcast.emit('test_event', 'test_value')
 
         self.loop.run_until_complete(test_coroutine())
+
+    def test_local_adv(self):
+        async def f1():
+            await asyncio.sleep(0.05)
+            broadcast = await create_local_broadcast("test_local_adv", True)
+            await asyncio.sleep(0.05)
+            await broadcast.emit("local", True)
+
+
+        async def f2():
+            result: BroadcastAdvertise = await self.broadcast.wait_for("channel_adv", 0.1, check=lambda x: x.name == "test_local_adv")
+            broadcast = result.broadcast
+            self.assertEqual(await broadcast.wait_for("local"), True, "Incorrect emit values")
+
+
+        async def test_coroutine():
+            async with asyncio.TaskGroup() as t:
+                t.create_task(f1())
+                t.create_task(f2())
+        
+        self.loop.run_until_complete(test_coroutine())
+
+
+    def test_local_sep(self):
+        async def f1():
+            local_broadcast = await create_local_broadcast("test_sep", False)
+            await local_broadcast.emit("test_sep", False)
+
+        async def f2():
+            with self.assertRaises((asyncio.TimeoutError,)) as cm:
+                await self.broadcast.wait_for("test_sep", 0.1)
 
 if __name__ == '__main__':
     unittest.main()
